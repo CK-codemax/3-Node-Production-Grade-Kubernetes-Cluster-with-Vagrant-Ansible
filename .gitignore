@@ -1,0 +1,20 @@
+# Vagrant
+.vagrant/
+vagrant-variables.yml
+
+# SSH
+ssh_config
+k8s-cluster-key
+k8s-cluster-key.pub
+*.pem
+*.key
+
+# Ansible
+ansible.log
+*.retry
+.ansible/
+
+# Logs
+*.log
+logs/
+

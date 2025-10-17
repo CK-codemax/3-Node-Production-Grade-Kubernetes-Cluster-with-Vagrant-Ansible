@@ -11,9 +11,8 @@ echo "Cluster: $CLUSTER_NAME"
 echo "Node Index: $NODE_INDEX"
 echo "Node IP: $NODE_IP"
 
-# Update system
+# Update package lists
 apt-get update
-apt-get upgrade -y
 
 # Install required packages
 apt-get install -y \

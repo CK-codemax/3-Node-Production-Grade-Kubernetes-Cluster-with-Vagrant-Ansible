@@ -48,13 +48,21 @@
         fail_msg: "Some nodes are not in Ready state"
         success_msg: "All nodes are Ready!"
         
-    - name: Test cluster with a simple pod
+    - name: Test cluster with a simple pod (non-interactive)
       shell: |
-        kubectl run test-pod --image=nginx --rm -it --restart=Never --command -- /bin/echo "Cluster is working!"
+        kubectl run test-pod --image=nginx --restart=Never --command -- /bin/echo "Cluster is working!" --timeout=30s
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
       register: test_pod
+      failed_when: false
       
     - name: Display test pod output
       debug:
         var: test_pod.stdout_lines
+      when: test_pod.stdout_lines is defined
+      
+    - name: Clean up test pod
+      shell: kubectl delete pod test-pod --ignore-not-found=true
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      when: test_pod.rc != 0

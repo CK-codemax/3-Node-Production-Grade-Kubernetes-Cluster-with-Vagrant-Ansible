@@ -1,7 +1,7 @@
-# Makefile for 3-Node Kubernetes Cluster Setup
-# This Makefile automates the entire process from key generation to cluster deployment
+# Makefile for 3-Node Kubernetes Cluster Setup with Vagrant
+# This Makefile automates the entire process from VM creation to cluster deployment
 
-.PHONY: help keys init plan apply destroy inventory ping prereq hostnames master cni workers verify all clean setup-infra setup-cluster cleanup-cluster
+.PHONY: help up down provision inventory ping prereq hostnames master cni workers verify all clean setup-vagrant setup-cluster cleanup-cluster clean-cluster clean-infra
 
 # Default target
 help:
@@ -10,58 +10,47 @@ help:
 	@echo ""
 	@echo "Available targets:"
 	@echo "  help          - Show this help message"
-	@echo "  keys          - Generate SSH key pair"
-	@echo "  init          - Initialize Terraform"
-	@echo "  plan          - Plan Terraform deployment"
-	@echo "  apply         - Apply Terraform configuration"
-	@echo "  destroy       - Destroy all infrastructure"
-	@echo "  inventory     - Create inventory file from Terraform output"
+	@echo "  up            - Start Vagrant VMs"
+	@echo "  down          - Stop Vagrant VMs"
+	@echo "  provision     - Provision VMs with Kubernetes tools"
+	@echo "  inventory     - Create inventory file"
 	@echo "  ping          - Test connectivity to all nodes"
+	@echo "  ssh-config    - Generate SSH config for Ansible"
 	@echo "  prereq        - Run prerequisites playbook"
-	@echo "  hostnames     - Configure hostnames"
+	@echo "  kubelet       - Configure kubelet node IPs"
 	@echo "  master        - Initialize master node"
 	@echo "  cni           - Install CNI (Calico)"
 	@echo "  workers       - Join worker nodes"
 	@echo "  verify        - Verify cluster"
 	@echo "  all           - Run all Ansible playbooks"
-	@echo "  setup-infra   - Complete infrastructure setup (keys + terraform + inventory)"
-	@echo "  setup-cluster - Complete cluster setup (requires updated hosts.yml)"
+	@echo "  setup           - Complete setup (VMs + cluster) in one command"
+	@echo "  setup-vagrant   - Complete VM setup (up + provision + inventory)"
+	@echo "  setup-cluster   - Complete cluster setup"
 	@echo "  cleanup-cluster - Clean up Kubernetes resources from VMs"
+	@echo "  clean-cluster  - Fast cleanup: kubeadm reset + uninstall tools"
+	@echo "  clean-infra    - Clean up infrastructure: vagrant destroy"
 	@echo "  clean         - Clean up generated files"
 	@echo ""
 	@echo "Quick start:"
-	@echo "  make setup-infra   - Setup infrastructure first"
-	@echo "  make setup-cluster - Setup cluster (after editing hosts.yml)"
+	@echo "  make setup         - Complete setup (VMs + cluster) in one go"
 	@echo "  make clean         - Clean up and start over"
 
-# Generate SSH key pair
-keys:
-	@echo "Generating SSH key pair..."
-	@./scripts/generate-keys.sh
+# Vagrant commands
+up:
+	@echo "Starting Vagrant VMs..."
+	@vagrant up
 
-# Terraform commands
-init:
-	@echo "Initializing Terraform..."
-	@terraform init
+down:
+	@echo "Stopping Vagrant VMs..."
+	@vagrant halt
 
-plan: init
-	@echo "Planning Terraform deployment..."
-	@terraform plan
+provision:
+	@echo "Provisioning VMs with Kubernetes tools..."
+	@vagrant provision
 
-apply: init
-	@echo "Applying Terraform configuration..."
-	@terraform apply -auto-approve
-
-destroy:
-	@echo "Destroying infrastructure..."
-	@terraform destroy -auto-approve
-
-# Create inventory file from Terraform output
+# Create inventory file
 inventory:
-	@echo "Creating inventory file from Terraform output..."
-	@cp cluster-setup/inventory/hosts-template.yml cluster-setup/inventory/hosts.yml
-	@echo "Please update cluster-setup/inventory/hosts.yml with actual IP addresses from:"
-	@echo "terraform output"
+	@echo "Inventory file already exists with Vagrant IPs"
 
 # Ansible commands
 ping:
@@ -72,9 +61,9 @@ prereq:
 	@echo "Running prerequisites playbook..."
 	@ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml
 
-hostnames:
-	@echo "Configuring hostnames..."
-	@ansible-playbook cluster-setup/playbooks/02-configure-hostnames.yml
+kubelet:
+	@echo "Configuring kubelet node IPs..."
+	@ansible-playbook cluster-setup/playbooks/00-configure-kubelet.yml
 
 master:
 	@echo "Initializing master node..."
@@ -92,36 +81,54 @@ verify:
 	@echo "Verifying cluster..."
 	@ansible-playbook cluster-setup/playbooks/06-verify-cluster.yml
 
+autocomplete:
+	@echo "Setting up kubectl autocomplete..."
+	@ansible-playbook cluster-setup/playbooks/07-setup-kubectl-autocomplete.yml
+
 all:
 	@echo "Running all Ansible playbooks..."
+	@ansible-playbook cluster-setup/playbooks/00-configure-kubelet.yml
 	@ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml
-	@ansible-playbook cluster-setup/playbooks/02-configure-hostnames.yml
 	@ansible-playbook cluster-setup/playbooks/03-initi-master.yml
 	@ansible-playbook cluster-setup/playbooks/04-install-cni.yml
 	@ansible-playbook cluster-setup/playbooks/05-join-workers.yml
 	@ansible-playbook cluster-setup/playbooks/06-verify-cluster.yml
-
+	@ansible-playbook cluster-setup/playbooks/07-setup-kubectl-autocomplete.yml
 # Complete setup process
-setup-infra: keys apply inventory
+setup: setup-vagrant setup-cluster
 	@echo ""
-	@echo "🎉 Infrastructure setup complete!"
+	@echo "🎉 Complete Kubernetes cluster setup finished!"
+	@echo ""
+	@echo "Your cluster is ready! Next steps:"
+	@echo "1. SSH to master: vagrant ssh master1"
+	@echo "2. Check cluster: kubectl get nodes"
+	@echo "3. View pods: kubectl get pods -A"
+	@echo ""
+	@echo "To destroy: make clean"
+
+setup-vagrant: up inventory
+	@echo ""
+	@echo "🎉 Vagrant VM setup complete!"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. Edit cluster-setup/inventory/hosts.yml with actual IP addresses from:"
-	@echo "   terraform output"
-	@echo "2. Run: make setup-cluster"
+	@echo "1. Run: make setup-cluster"
 	@echo ""
 
-setup-cluster: all
+setup-cluster: ssh-config all
 	@echo ""
 	@echo "🎉 Kubernetes cluster setup complete!"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. SSH to master: ssh -i k8s-cluster-key ubuntu@\$$(terraform output -raw master_public_ips)"
+	@echo "1. SSH to master: vagrant ssh master1"
 	@echo "2. Check cluster: kubectl get nodes"
 	@echo "3. View pods: kubectl get pods -A"
 	@echo ""
-	@echo "To destroy: make destroy"
+	@echo "To destroy: make clean"
+
+# Generate SSH config for Ansible connectivity
+ssh-config:
+	@echo "Generating SSH config for Ansible..."
+	@vagrant ssh-config > ssh_config
 
 # Clean up Kubernetes resources from VMs
 cleanup-cluster:
@@ -131,19 +138,30 @@ cleanup-cluster:
 	@echo "Kubernetes cleanup completed!"
 	@echo "You can now safely run: make destroy"
 
+# Fast Kubernetes cleanup
+clean-cluster:
+	@echo "Fast Kubernetes cleanup..."
+	@ansible-playbook cluster-setup/playbooks/08-cleanup-cluster.yml
+	@echo ""
+	@echo "Fast Kubernetes cleanup completed!"
+	@echo "VMs are still running and ready for new cluster setup."
+
+# Clean up infrastructure
+clean-infra:
+	@echo "Cleaning up infrastructure..."
+	@vagrant destroy -f
+	@echo "Infrastructure cleanup completed!"
+
 # Clean up generated files
-clean: cleanup-cluster
+clean: clean-cluster clean-infra
 	@echo "Cleaning up generated files..."
-	@rm -f k8s-cluster-key k8s-cluster-key.pub
 	@rm -f cluster-setup/inventory/hosts.yml
 	@rm -f ansible.log
-	@rm -rf .terraform
-	@rm -f terraform.tfstate*
-	@echo "Cleanup complete!"
+	@echo "Complete cleanup finished!"
 
 # Development helpers
-dev-setup: keys init
-	@echo "Development setup complete. Run 'make apply' to create infrastructure."
+dev-setup: up
+	@echo "Development setup complete. Run 'make provision' to install Kubernetes tools."
 
 dev-ansible: inventory all
 	@echo "Ansible setup complete. Cluster should be ready!"

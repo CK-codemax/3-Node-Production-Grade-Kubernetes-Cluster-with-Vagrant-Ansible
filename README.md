@@ -1,6 +1,6 @@
-# 3-Node Kubernetes Infrastructure Setup on AWS
+# 3-Node Kubernetes Infrastructure Setup with Vagrant
 
-This setup creates a 3 node kubernetes cluster using kubeadm on AWS. The process is fully automated using Terraform for provisioning Infrastructure and ansible for automating kubernetes setup.
+This setup creates a 3 node kubernetes cluster using kubeadm with Vagrant VMs. The process is fully automated using Vagrant for provisioning Infrastructure and ansible for automating kubernetes setup.
 
 ## ✅ Cluster Status - WORKING!
 
@@ -15,60 +15,61 @@ This setup creates a 3 node kubernetes cluster using kubeadm on AWS. The process
 
 - **1 Master Node** (control plane)
 - **2 Worker Nodes** (compute)
-- **Basic EC2 instances** with Ubuntu 22.04 LTS
-- **Security Groups** with proper firewall rules for Kubernetes
+- **Vagrant VMs** with Ubuntu 22.04 LTS
+- **Private networking** with static IPs for cluster communication
 - **Pre-installed Kubernetes packages** (kubelet, kubeadm, kubectl)
 
 ## Simple Architecture
 
 ```
 ┌─────────────────────────────────────────┐
-│              AWS EC2 Instances          │
+│              Vagrant VMs                │
 │                                         │
 │  ┌─────────────┐  ┌─────────────┐      │
 │  │   Master-1  │  │   Worker-1  │      │
 │  │ (Control    │  │  (Compute   │      │
 │  │  Plane)     │  │   Node)     │      │
+│  │192.168.56.10│  │192.168.56.11│      │
 │  └─────────────┘  └─────────────┘      │
 │                                         │
 │  ┌─────────────┐                       │
 │  │   Worker-2  │                       │
 │  │  (Compute   │                       │
 │  │   Node)     │                       │
+│  │192.168.56.12│                       │
 │  └─────────────┘                       │
 └─────────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
-1. **AWS CLI** configured with appropriate credentials
-2. **Terraform** >= 1.0 installed
+1. **Vagrant** >= 2.0 installed
+2. **VirtualBox** or other Vagrant provider
 3. **Make** utility installed (for automation)
 4. **Ansible** installed (for cluster setup)
-5. **AWS Permissions** for EC2 operations
+5. **At least 6GB RAM** available for VMs
 
 ### Installation Instructions
 
 **macOS:**
 ```bash
-# Make is pre-installed
-# Install Ansible
-brew install ansible
+# Install Vagrant, VirtualBox, and Ansible
+brew install vagrant virtualbox ansible
 ```
 
 **Ubuntu/Debian:**
 ```bash
-# Install Make and Ansible
+# Install Vagrant, VirtualBox, Make and Ansible
 sudo apt update
-sudo apt install make ansible
+sudo apt install vagrant virtualbox make ansible
 ```
 
 **CentOS/RHEL:**
 ```bash
-# Install Make and Ansible
-sudo yum install make ansible
+# Install Vagrant, VirtualBox, Make and Ansible
+sudo yum install vagrant VirtualBox make ansible
 # or for newer versions:
-sudo dnf install make ansible
+sudo dnf install vagrant VirtualBox make ansible
 ```
 
 ## Quick Start with Makefile
@@ -76,34 +77,34 @@ sudo dnf install make ansible
 The easiest way to set up the entire cluster:
 
 ```bash
-# Step 1: Complete infrastructure setup (keys + terraform + inventory)
-make setup-infra
-
-# Step 2: Edit cluster-setup/inventory/hosts.yml with actual IPs from terraform output
-# Step 3: Complete cluster setup
-make setup-cluster
+# One command setup (recommended)
+make setup
 
 # Or step by step:
-make keys                    # Generate SSH keys
-make apply                   # Create infrastructure
+make setup-vagrant          # Complete VM setup (create VMs + install tools + inventory)
+make setup-cluster          # Complete cluster setup
+
+# Or individual steps:
+make up                     # Start Vagrant VMs
 make inventory              # Create inventory file
-# Edit cluster-setup/inventory/hosts.yml with actual IPs
 make all                    # Deploy Kubernetes cluster
 ```
 
 ## Complete Setup Workflow
 
-### 1. Infrastructure Setup
+### 1. VM Setup
 ```bash
-make setup-infra
+make setup-vagrant
 ```
 **What this does:**
-- Generates SSH key pair (`k8s-cluster-key`)
-- Initializes Terraform
-- Creates AWS infrastructure (3 EC2 instances)
-- Creates Ansible inventory template (`hosts-template.yml`)
+- Starts Vagrant VMs (3 VMs with Ubuntu 22.04)
+- Provisions VMs with Kubernetes tools (kubelet, kubeadm, kubectl)
+- Creates Ansible inventory file (`hosts.yml`) with Vagrant IPs
 
-**Next step:** Edit `cluster-setup/inventory/hosts.yml` with actual IP addresses from `terraform output`
+**VMs created:**
+- Master: `192.168.56.10`
+- Worker1: `192.168.56.11`
+- Worker2: `192.168.56.12`
 
 ### 2. Cluster Setup
 ```bash
@@ -147,23 +148,23 @@ make destroy  # Destroy AWS infrastructure
 
 ```bash
 make help                   # Show all available commands
-make keys                   # Generate SSH key pair
-make init                   # Initialize Terraform
-make plan                   # Plan deployment
-make apply                  # Create infrastructure
-make destroy                # Destroy infrastructure
+make setup                  # Complete setup (VMs + cluster) in one command ⭐
+make up                     # Start Vagrant VMs
+make down                   # Stop Vagrant VMs
+make provision              # Provision VMs with Kubernetes tools
 make inventory              # Create inventory file
 make ping                   # Test connectivity
+make ssh-config             # Generate SSH config for Ansible
 make prereq                 # Run prerequisites
-make hostnames              # Configure hostnames
+make kubelet                # Configure kubelet node IPs
 make master                 # Initialize master
 make cni                    # Install CNI
 make workers                # Join workers
 make verify                 # Verify cluster
-make setup-infra            # Complete infrastructure setup
+make setup-vagrant          # Complete VM setup
 make setup-cluster          # Complete cluster setup
 make cleanup-cluster        # Clean up Kubernetes resources
-make clean                  # Clean up files
+make clean                  # Clean up files and destroy VMs
 make status                 # Check cluster status
 ```
 
@@ -190,7 +191,7 @@ After Terraform completes, you'll have 3 EC2 instances ready for Kubernetes setu
 
 1. **SSH to master node:**
    ```bash
-   ssh -i k8s-cluster-key ubuntu@<master-public-ip>
+   vagrant ssh master1
    ```
 
 2. **Initialize Kubernetes cluster:**
@@ -217,7 +218,7 @@ After Terraform completes, you'll have 3 EC2 instances ready for Kubernetes setu
 
 6. **SSH to worker nodes and join cluster:**
    ```bash
-   ssh -i k8s-cluster-key ubuntu@<worker-public-ip>
+   vagrant ssh worker1
    sudo <join-command-from-step-5>
    ```
 
@@ -353,27 +354,102 @@ make destroy
 
 **`make clean`:**
 - First runs `cleanup-cluster` (see above)
-- Then removes local files (SSH keys, inventory, logs, terraform files)
-
-**`make destroy`:**
-- Destroys all AWS infrastructure (EC2 instances, security groups, key pairs)
+- Then removes local files (inventory, logs)
+- Destroys all Vagrant VMs
 
 ## Troubleshooting
 
-1. **Check Kubernetes status:**
-   ```bash
-   kubectl get nodes
-   kubectl get pods -A
-   ```
+### Common Issues and Solutions
 
-2. **Reset kubeadm (if needed):**
-   ```bash
-   sudo kubeadm reset
-   ```
+#### 1. **Provisioning Failures**
+If `make provision` fails with GPG key errors:
+```bash
+# Clean up and retry
+make clean-infra
+make setup-vagrant
+```
 
-3. **Check cluster connectivity:**
-   ```bash
-   ansible all -m ping
-   ```
+#### 2. **Cluster Setup Failures**
+If `make setup-cluster` fails:
+```bash
+# Check if VMs are running
+vagrant status
+
+# Regenerate SSH config (common fix)
+make ssh-config
+
+# If VMs are running but cluster setup fails, clean cluster and retry
+make clean-cluster
+make setup-cluster
+```
+
+#### 3. **kubelet Service Not Found**
+If you get "Could not find the requested service kubelet":
+- This happens after running `make clean-cluster`
+- Run `make provision` first to reinstall Kubernetes tools
+- Then run `make setup-cluster`
+
+#### 4. **Worker Nodes Not Joining**
+If worker nodes fail to join:
+- Check that the master node is fully initialized
+- Verify the join command uses the correct IP (192.168.56.10)
+- Check network connectivity between nodes
+
+#### 5. **SSH Connectivity Issues (Most Common)**
+If you get "Permission denied (publickey,password)" or "UNREACHABLE!" errors:
+```bash
+# This is usually a timing issue - SSH config needs regeneration
+make ssh-config
+
+# Test connectivity
+ansible all -m ping
+
+# If still failing, manually regenerate:
+vagrant ssh-config > ssh_config
+```
+
+**Why this happens:** During `vagrant up`, SSH keys are generated and network interfaces are configured. Ansible needs the updated SSH config to connect properly.
+
+#### 6. **General Troubleshooting Commands**
+```bash
+# Check Kubernetes status
+vagrant ssh master1 -c "kubectl get nodes"
+vagrant ssh master1 -c "kubectl get pods -A"
+
+# Check VM status
+vagrant status
+
+# View VM logs
+vagrant ssh master1
+vagrant ssh worker1
+vagrant ssh worker2
+```
+
+### Workflow Best Practices
+
+#### **First Time Setup:**
+```bash
+make setup-vagrant    # Create VMs and install tools
+make setup-cluster    # Deploy Kubernetes cluster
+```
+
+#### **Reset Cluster (Keep VMs):**
+```bash
+make clean-cluster    # Reset cluster state
+make setup-cluster    # Deploy new cluster
+```
+
+#### **Complete Reset:**
+```bash
+make clean           # Destroy everything and start fresh
+make setup-vagrant   # Create new VMs
+make setup-cluster   # Deploy new cluster
+```
+
+### Cleanup Options
+
+- **`make clean-cluster`**: Fast reset - only runs `kubeadm reset -f` and removes kubectl config
+- **`make clean-infra`**: Destroys all VMs
+- **`make clean`**: Complete cleanup (cluster + infrastructure + files)
 
 

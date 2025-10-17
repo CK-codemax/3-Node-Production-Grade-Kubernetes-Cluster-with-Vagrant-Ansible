@@ -6,9 +6,8 @@ Vagrant.configure("2") do |config|
   config.vm.box = "generic/ubuntu2204"
   config.vm.box_version = "4.3.12"
 
-  # SSH key configuration
-  config.ssh.insert_key = false
-  config.ssh.private_key_path = ["k8s-cluster-key"]
+  # Use default SSH key (so  works)
+  config.ssh.insert_key = true
 
   # Define IP addresses for the cluster
   MASTER_IP = "192.168.56.10"
@@ -19,8 +18,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "master1" do |master|
     master.vm.hostname = "3-nodes-k8s-cluster-master-1"
     master.vm.network "private_network", ip: MASTER_IP
-    
-    # Resource allocation for master
+
     master.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"
       vb.cpus = 2
@@ -29,11 +27,11 @@ Vagrant.configure("2") do |config|
 
     # Provision master node
     master.vm.provision "shell", inline: <<-SHELL
-      # Fix DNS resolution first
+      # Fix DNS resolution
       systemctl disable systemd-resolved
       systemctl stop systemd-resolved
       rm -f /etc/resolv.conf
-      echo -e "nameserver 8.8.8.8\\nnameserver 1.1.1.1" > /etc/resolv.conf
+      echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
 
       # Test internet connectivity
       if ! ping -c 4 google.com > /dev/null 2>&1; then
@@ -51,21 +49,19 @@ Vagrant.configure("2") do |config|
   config.vm.define "worker1" do |worker|
     worker.vm.hostname = "3-nodes-k8s-cluster-worker-1"
     worker.vm.network "private_network", ip: WORKER1_IP
-    
-    # Resource allocation for worker
+
     worker.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"
       vb.cpus = 2
       vb.name = "3-nodes-k8s-cluster-worker-1"
     end
 
-    # Provision worker node
     worker.vm.provision "shell", inline: <<-SHELL
-      # Fix DNS resolution first
+      # Fix DNS resolution
       systemctl disable systemd-resolved
       systemctl stop systemd-resolved
       rm -f /etc/resolv.conf
-      echo -e "nameserver 8.8.8.8\\nnameserver 1.1.1.1" > /etc/resolv.conf
+      echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
 
       # Test internet connectivity
       if ! ping -c 4 google.com > /dev/null 2>&1; then
@@ -83,21 +79,19 @@ Vagrant.configure("2") do |config|
   config.vm.define "worker2" do |worker|
     worker.vm.hostname = "3-nodes-k8s-cluster-worker-2"
     worker.vm.network "private_network", ip: WORKER2_IP
-    
-    # Resource allocation for worker
+
     worker.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"
       vb.cpus = 2
       vb.name = "3-nodes-k8s-cluster-worker-2"
     end
 
-    # Provision worker node
     worker.vm.provision "shell", inline: <<-SHELL
-      # Fix DNS resolution first
+      # Fix DNS resolution
       systemctl disable systemd-resolved
       systemctl stop systemd-resolved
       rm -f /etc/resolv.conf
-      echo -e "nameserver 8.8.8.8\\nnameserver 1.1.1.1" > /etc/resolv.conf
+      echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
 
       # Test internet connectivity
       if ! ping -c 4 google.com > /dev/null 2>&1; then
@@ -112,10 +106,10 @@ Vagrant.configure("2") do |config|
   end
 
   # Post-provisioning: Update /etc/hosts on all nodes
-  config.vm.provision "shell", inline: <<-SHELL
-    # Update /etc/hosts on all nodes with cluster information
+  config.vm.provision "shell", inline: <<-SHELL, run: "always"
     echo "#{MASTER_IP} master1 3-nodes-k8s-cluster-master-1" >> /etc/hosts
     echo "#{WORKER1_IP} worker1 3-nodes-k8s-cluster-worker-1" >> /etc/hosts
     echo "#{WORKER2_IP} worker2 3-nodes-k8s-cluster-worker-2" >> /etc/hosts
-  SHELL, run: "always"
+  SHELL
 end
+

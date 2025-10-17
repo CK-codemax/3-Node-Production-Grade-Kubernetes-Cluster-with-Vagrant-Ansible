@@ -22,6 +22,8 @@
       command: >
         kubeadm init
         --pod-network-cidr=192.168.0.0/16
+        --apiserver-advertise-address=192.168.56.10
+        --control-plane-endpoint=192.168.56.10
       args:
         creates: /etc/kubernetes/admin.conf
 
@@ -42,26 +44,26 @@
         mode: '0600'
         remote_src: yes
 
-    - name: Ensure .kube directory exists for ubuntu user
+    - name: Ensure .kube directory exists for vagrant user
       file:
-        path: /home/ubuntu/.kube
+        path: /home/vagrant/.kube
         state: directory
-        owner: ubuntu
-        group: ubuntu
+        owner: vagrant
+        group: vagrant
         mode: '0700'
 
-    - name: Copy admin.conf to ubuntu user .kube/config
+    - name: Copy admin.conf to vagrant user .kube/config
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: /home/ubuntu/.kube/config
-        owner: ubuntu
-        group: ubuntu
+        dest: /home/vagrant/.kube/config
+        owner: vagrant
+        group: vagrant
         mode: '0600'
         remote_src: yes
 
-    - name: Set KUBECONFIG environment variable for ubuntu user
+    - name: Set KUBECONFIG environment variable for vagrant user
       lineinfile:
-        path: /home/ubuntu/.bashrc
+        path: /home/vagrant/.bashrc
         line: 'export KUBECONFIG=$HOME/.kube/config'
         state: present
         create: yes

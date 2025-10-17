@@ -1,0 +1,31 @@
+---
+- name: Configure Kubelet Node IP
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Get node IP from inventory
+      set_fact:
+        node_ip: "{{ ansible_host }}"
+        
+    - name: Configure kubelet with node IP
+      lineinfile:
+        path: /etc/default/kubelet
+        line: "KUBELET_EXTRA_ARGS=--node-ip={{ node_ip }}"
+        create: yes
+        backup: yes
+        
+    - name: Systemd daemon reexec
+      systemd:
+        daemon_reexec: yes
+        
+    - name: Systemd daemon reload
+      systemd:
+        daemon_reload: yes
+        
+    - name: Restart kubelet service
+      systemd:
+        name: kubelet
+        state: restarted
+        enabled: yes

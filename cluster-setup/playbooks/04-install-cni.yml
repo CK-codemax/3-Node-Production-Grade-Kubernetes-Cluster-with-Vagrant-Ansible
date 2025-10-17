@@ -8,7 +8,7 @@
     - name: Apply Calico CNI
       shell: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
       environment:
-        KUBECONFIG: /home/ubuntu/.kube/config
+        KUBECONFIG: /home/vagrant/.kube/config
       register: calico_apply
 
     - name: Display Calico installation output

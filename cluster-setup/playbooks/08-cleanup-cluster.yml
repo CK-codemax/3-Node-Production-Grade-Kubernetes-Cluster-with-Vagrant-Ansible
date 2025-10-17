@@ -1,0 +1,33 @@
+---
+- name: Fast Clean up Kubernetes Cluster
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Reset kubeadm on all nodes
+      command: kubeadm reset -f
+      register: kubeadm_reset
+      failed_when: false
+      changed_when: false
+      
+    - name: Display kubeadm reset output
+      debug:
+        msg: "{{ inventory_hostname }}: {{ kubeadm_reset.stdout_lines }}"
+      when: kubeadm_reset.stdout_lines is defined
+        
+    - name: Remove .kube directory from vagrant user
+      file:
+        path: /home/vagrant/.kube
+        state: absent
+      when: inventory_hostname == "master1"
+        
+    - name: Remove .kube directory from root
+      file:
+        path: /root/.kube
+        state: absent
+      when: inventory_hostname == "master1"
+        
+    - name: Display cleanup completion
+      debug:
+        msg: "{{ inventory_hostname }}: Fast Kubernetes cleanup completed"

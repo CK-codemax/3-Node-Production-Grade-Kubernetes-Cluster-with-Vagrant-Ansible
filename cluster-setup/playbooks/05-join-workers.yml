@@ -36,8 +36,12 @@
       debug:
         var: worker_join.stdout_lines
         
+    - name: Get actual hostname
+      shell: hostname
+      register: actual_hostname
+      
     - name: Wait for node to be ready
-      shell: kubectl get node {{ inventory_hostname }} --no-headers | awk '{print $2}'
+      shell: kubectl get node {{ actual_hostname.stdout }} --no-headers | awk '{print $2}'
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
       delegate_to: master1
