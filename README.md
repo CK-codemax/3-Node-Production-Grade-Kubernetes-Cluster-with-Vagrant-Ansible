@@ -113,7 +113,7 @@ make setup-cluster
 **What this does:**
 - Runs all Ansible playbooks to deploy Kubernetes
 - Verifies prerequisites
-- Configures hostnames
+- Configures kubelet node IPs
 - Initializes master node
 - Installs CNI (Calico)
 - Joins worker nodes
@@ -124,12 +124,9 @@ make setup-cluster
 make cleanup-cluster
 ```
 **What this does:**
-- Force deletes all Kubernetes resources
 - Runs `kubeadm reset -f` on all nodes
-- Uninstalls Kubernetes packages
-- Removes repositories and GPG keys
-- Cleans up directories and network settings
-- Resets configuration files
+- Removes `.kube/config` from master node
+- Fast cleanup without uninstalling packages
 
 ### 4. Complete Cleanup
 ```bash
@@ -137,12 +134,8 @@ make clean
 ```
 **What this does:**
 - First runs `cleanup-cluster` (see above)
-- Then removes local files (SSH keys, inventory, logs, terraform files)
-
-**Follow with:**
-```bash
-make destroy  # Destroy AWS infrastructure
-```
+- Then removes local files (inventory, logs)
+- Destroys all Vagrant VMs
 
 ### Available Makefile Targets
 
@@ -170,24 +163,22 @@ make status                 # Check cluster status
 
 ## Configuration
 
-### Variables (variables.tf)
+### Variables (Vagrantfile)
 
-- `aws_region`: AWS region (default: us-east-1)
-- `cluster_name`: Cluster name (default: 3-nodes-k8s-cluster)
-- `master_instance_type`: Master node instance type (default: t3.medium)
-- `worker_instance_type`: Worker node instance type (default: t3.medium)
-- `kubernetes_version`: Kubernetes version (default: 1.28.0)
+- `MASTER_IP`: Master node IP (default: 192.168.56.10)
+- `WORKER1_IP`: Worker node 1 IP (default: 192.168.56.11)
+- `WORKER2_IP`: Worker node 2 IP (default: 192.168.56.12)
 
 ### Customization
 
-Edit `variables.tf` to customize:
-- Instance types
-- Kubernetes version
-- Cluster name
+Edit `Vagrantfile` to customize:
+- Instance IPs
+- VM memory/CPU
+- Kubernetes version (in provisioning scripts)
 
 ## Post-Deployment - Setting Up Kubernetes with kubeadm
 
-After Terraform completes, you'll have 3 EC2 instances ready for Kubernetes setup:
+After `make setup-vagrant` completes, you'll have 3 Vagrant VMs ready for Kubernetes setup:
 
 1. **SSH to master node:**
    ```bash
@@ -239,10 +230,7 @@ For automated cluster setup, you can use the provided Ansible playbooks:
    ```
 
 2. **Update inventory file:**
-   ```bash
-   cp cluster-setup/inventory/hosts-template.yml cluster-setup/inventory/hosts.yml
-   # Edit hosts.yml with your actual IP addresses from terraform output
-   ```
+   The `cluster-setup/inventory/hosts.yml` file is automatically created by `make setup-vagrant`.
 
 3. **Test connectivity:**
    ```bash
@@ -251,14 +239,14 @@ For automated cluster setup, you can use the provided Ansible playbooks:
 
 ### Run Individual Playbooks
 
-1. **Verify prerequisites:**
+1. **Configure kubelet node IPs:**
    ```bash
-   ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml
+   ansible-playbook cluster-setup/playbooks/00-configure-kubelet.yml
    ```
 
-2. **Configure hostnames:**
+2. **Verify prerequisites:**
    ```bash
-   ansible-playbook cluster-setup/playbooks/02-configure-hostnames.yml
+   ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml
    ```
 
 3. **Initialize master node:**
@@ -281,6 +269,11 @@ For automated cluster setup, you can use the provided Ansible playbooks:
    ansible-playbook cluster-setup/playbooks/06-verify-cluster.yml
    ```
 
+7. **Setup kubectl autocomplete:**
+   ```bash
+   ansible-playbook cluster-setup/playbooks/07-setup-kubectl-autocomplete.yml
+   ```
+
 ### Run Playbooks with Verbose Output
 ```bash
 ansible-playbook cluster-setup/playbooks/01-verify-Prerequisites.yml -v
@@ -298,11 +291,11 @@ After running all playbooks, you should see:
 - **Test specific group:** `ansible masters -m ping`
 - **View logs:** Check `ansible.log` file
 
-## Security Groups
+## Network Configuration
 
-- **Masters**: SSH (22), Kubernetes API (6443), etcd (2379-2380), kubelet (10250), scheduler/controller-manager (10257, 10259)
+- **Master**: SSH (22), Kubernetes API (6443), etcd (2379-2380), kubelet (10250)
 - **Workers**: SSH (22), kubelet (10250), NodePort (30000-32767)
-- **Load Balancer**: HTTP (80), HTTPS (443), Kubernetes API (6443)
+- **Private Network**: 192.168.56.0/24 for cluster communication
 
 This setup is perfect for practicing:
 
@@ -323,9 +316,6 @@ To properly clean up everything:
 ```bash
 # 1. Clean up Kubernetes resources from VMs + local files
 make clean
-
-# 2. Destroy AWS infrastructure
-make destroy
 ```
 
 ### Individual Cleanup Steps
@@ -334,23 +324,19 @@ make destroy
 # Clean up Kubernetes resources from VMs only
 make cleanup-cluster
 
-# Clean up local files only (SSH keys, inventory, logs, terraform files)
+# Clean up local files only (inventory, logs)
 make clean
 
-# Destroy AWS infrastructure only
-make destroy
+# Destroy Vagrant infrastructure only
+make clean-infra
 ```
 
 ### What Each Cleanup Command Does:
 
 **`make cleanup-cluster`:**
-1. Force deletes all Kubernetes resources (pods, deployments, services, etc.)
-2. Runs `kubeadm reset -f` on all nodes to clean up cluster state
-3. Uninstalls Kubernetes packages (kubelet, kubeadm, kubectl, containerd)
-4. Removes repositories and GPG keys for Docker and Kubernetes
-5. Cleans up directories (/etc/kubernetes, /var/lib/kubelet, etc.)
-6. Resets network settings (iptables, IPVS, CNI interfaces)
-7. Removes configuration files and caches
+1. Runs `kubeadm reset -f` on all nodes to clean up cluster state
+2. Removes `.kube/config` from master node
+3. Fast cleanup without uninstalling packages
 
 **`make clean`:**
 - First runs `cleanup-cluster` (see above)
