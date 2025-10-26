@@ -27,7 +27,7 @@ apt-get install -y \
     git
 
 # Configure hostname
-hostnamectl set-hostname ${CLUSTER_NAME}-worker-${NODE_INDEX}
+hostnamectl set-hostname worker-${NODE_INDEX}
 
 # Configure hosts file
 cat >> /etc/hosts << EOF

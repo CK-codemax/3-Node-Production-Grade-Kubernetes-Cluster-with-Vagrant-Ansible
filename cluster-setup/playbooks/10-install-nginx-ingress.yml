@@ -1,0 +1,57 @@
+---
+- name: Install Nginx Ingress Controller with Helm
+  hosts: masters
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Add ingress-nginx Helm repository
+      shell: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      register: repo_add
+      failed_when: false
+      
+    - name: Update Helm repositories
+      shell: helm repo update
+      register: repo_update
+      
+    - name: Display repository update output
+      debug:
+        var: repo_update.stdout_lines
+      when: repo_update.stdout_lines is defined
+      
+    - name: Install Nginx Ingress Controller
+      shell: |
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          --set controller.service.type=NodePort \
+          --set controller.hostNetwork=true \
+          --set controller.admissionWebhooks.enabled=false \
+          --set controller.kind=DaemonSet
+      register: ingress_install
+      
+    - name: Display ingress installation output
+      debug:
+        var: ingress_install.stdout_lines
+      when: ingress_install.stdout_lines is defined
+      
+    - name: Wait for ingress controller pods to be ready
+      shell: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ingress-nginx -n ingress-nginx --timeout=300s
+      register: ingress_ready
+      
+    - name: Display ingress readiness status
+      debug:
+        var: ingress_ready.stdout_lines
+      when: ingress_ready.stdout_lines is defined
+      
+    - name: Get ingress controller service details
+      shell: kubectl get svc -n ingress-nginx
+      register: ingress_svc
+      
+    - name: Display ingress service details
+      debug:
+        var: ingress_svc.stdout_lines
+      when: ingress_svc.stdout_lines is defined
+      
+    - name: Display Nginx Ingress installation completion
+      debug:
+        msg: "{{ inventory_hostname }}: Nginx Ingress Controller installation completed successfully"

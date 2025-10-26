@@ -1,0 +1,76 @@
+---
+- name: Setup NFS Server and Client
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Get master node IP
+      set_fact:
+        master_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+      when: inventory_hostname in groups['masters']
+      
+    - name: Set master IP for all nodes
+      set_fact:
+        master_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+        
+    - name: Install NFS server on master node
+      apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: yes
+      when: inventory_hostname in groups['masters']
+      
+    - name: Install NFS client on worker nodes
+      apt:
+        name: nfs-common
+        state: present
+        update_cache: yes
+      when: inventory_hostname in groups['workers']
+      
+    - name: Create NFS export directory on master
+      file:
+        path: /nfsexport
+        state: directory
+        mode: '0755'
+      when: inventory_hostname in groups['masters']
+      
+    - name: Configure NFS exports on master
+      lineinfile:
+        path: /etc/exports
+        line: "/nfsexport    *(rw,no_root_squash,no_subtree_check)"
+        create: yes
+        backup: yes
+      when: inventory_hostname in groups['masters']
+      
+    - name: Start and enable NFS server on master
+      systemd:
+        name: nfs-kernel-server
+        state: started
+        enabled: yes
+      when: inventory_hostname in groups['masters']
+      
+    - name: Restart NFS server to apply exports
+      systemd:
+        name: nfs-kernel-server
+        state: restarted
+      when: inventory_hostname in groups['masters']
+      
+    - name: Wait for NFS server to be ready
+      pause:
+        seconds: 5
+      when: inventory_hostname in groups['masters']
+      
+    - name: Test NFS mount from workers
+      shell: showmount -e {{ master_ip }}
+      register: nfs_test
+      when: inventory_hostname in groups['workers']
+      
+    - name: Display NFS test results
+      debug:
+        var: nfs_test.stdout_lines
+      when: inventory_hostname in groups['workers'] and nfs_test.stdout_lines is defined
+      
+    - name: Display NFS setup completion
+      debug:
+        msg: "{{ inventory_hostname }}: NFS setup completed - Server: {{ 'master' if inventory_hostname in groups['masters'] else 'client' }}"

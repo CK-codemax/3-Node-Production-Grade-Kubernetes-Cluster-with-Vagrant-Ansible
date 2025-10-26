@@ -27,7 +27,7 @@ apt-get install -y \
     git
 
 # Configure hostname
-hostnamectl set-hostname ${CLUSTER_NAME}-master-${NODE_INDEX}
+hostnamectl set-hostname master-${NODE_INDEX}
 
 # Configure hosts file
 cat >> /etc/hosts << EOF

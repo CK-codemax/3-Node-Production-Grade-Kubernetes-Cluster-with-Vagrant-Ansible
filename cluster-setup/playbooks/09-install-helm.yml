@@ -1,0 +1,38 @@
+---
+- name: Install and Setup Helm
+  hosts: masters
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Download Helm installation script
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get_helm.sh
+        mode: '0755'
+        
+    - name: Install Helm
+      shell: /tmp/get_helm.sh
+      register: helm_install
+      
+    - name: Display Helm installation output
+      debug:
+        var: helm_install.stdout_lines
+      when: helm_install.stdout_lines is defined
+      
+    - name: Verify Helm installation
+      shell: helm version --short
+      register: helm_version
+      
+    - name: Display Helm version
+      debug:
+        msg: "Helm version: {{ helm_version.stdout }}"
+        
+    - name: Clean up installation script
+      file:
+        path: /tmp/get_helm.sh
+        state: absent
+        
+    - name: Display Helm setup completion
+      debug:
+        msg: "{{ inventory_hostname }}: Helm installation completed successfully"

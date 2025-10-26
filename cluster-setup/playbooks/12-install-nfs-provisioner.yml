@@ -1,0 +1,59 @@
+---
+- name: Install NFS Subdir External Provisioner with Helm
+  hosts: masters
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Get master node IP
+      set_fact:
+        master_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+        
+    - name: Add nfs-subdir-external-provisioner Helm repository
+      shell: helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+      register: repo_add
+      failed_when: false
+      
+    - name: Update Helm repositories
+      shell: helm repo update
+      register: repo_update
+      
+    - name: Display repository update output
+      debug:
+        var: repo_update.stdout_lines
+      when: repo_update.stdout_lines is defined
+      
+    - name: Install NFS Subdir External Provisioner
+      shell: |
+        helm install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+          --set nfs.server={{ master_ip }} \
+          --set nfs.path=/nfsexport \
+          --set storageClass.defaultClass=true
+      register: nfs_provisioner_install
+      
+    - name: Display NFS provisioner installation output
+      debug:
+        var: nfs_provisioner_install.stdout_lines
+      when: nfs_provisioner_install.stdout_lines is defined
+      
+    - name: Wait for NFS provisioner pods to be ready
+      shell: kubectl wait --for=condition=ready pod -l app=nfs-subdir-external-provisioner --timeout=300s
+      register: nfs_provisioner_ready
+      
+    - name: Display NFS provisioner readiness status
+      debug:
+        var: nfs_provisioner_ready.stdout_lines
+      when: nfs_provisioner_ready.stdout_lines is defined
+      
+    - name: Verify default storage class
+      shell: kubectl get storageclass
+      register: storage_classes
+      
+    - name: Display storage classes
+      debug:
+        var: storage_classes.stdout_lines
+      when: storage_classes.stdout_lines is defined
+      
+    - name: Display NFS provisioner installation completion
+      debug:
+        msg: "{{ inventory_hostname }}: NFS Subdir External Provisioner installation completed successfully"

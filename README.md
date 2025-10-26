@@ -119,7 +119,30 @@ make setup-cluster
 - Joins worker nodes
 - Verifies cluster is working
 
-### 3. Cluster Cleanup (when done)
+### 3. Install Additional Tools (Optional)
+```bash
+make tools
+```
+**What this does:**
+- Installs Helm package manager
+- Installs Nginx Ingress Controller
+- Installs cert-manager for SSL certificate management
+- Creates Let's Encrypt production ClusterIssuer
+- Sets up NFS server and client
+- Installs NFS provisioner
+- Installs Metrics Server
+- Installs Kubernetes Dashboard with Let's Encrypt SSL
+
+**Individual tool installation:**
+```bash
+make helm                   # Install Helm only
+make nginx-ingress          # Install Nginx Ingress Controller only
+make cert-manager           # Install cert-manager only
+make letsencrypt-issuer     # Create Let's Encrypt ClusterIssuer only
+make dashboard              # Install Kubernetes Dashboard with SSL
+```
+
+### 4. Cluster Cleanup (when done)
 ```bash
 make cleanup-cluster
 ```
@@ -128,7 +151,7 @@ make cleanup-cluster
 - Removes `.kube/config` from master node
 - Fast cleanup without uninstalling packages
 
-### 4. Complete Cleanup
+### 5. Complete Cleanup
 ```bash
 make clean
 ```
@@ -154,6 +177,13 @@ make master                 # Initialize master
 make cni                    # Install CNI
 make workers                # Join workers
 make verify                 # Verify cluster
+make helm                   # Install Helm
+make nginx-ingress          # Install Nginx Ingress Controller
+make cert-manager           # Install cert-manager
+make letsencrypt-issuer     # Create Let's Encrypt ClusterIssuer
+make dashboard              # Install Kubernetes Dashboard (with SSL)
+make copy-kubedefs          # Copy kubedefs to control plane node
+make tools                  # Install all additional tools
 make setup-vagrant          # Complete VM setup
 make setup-cluster          # Complete cluster setup
 make cleanup-cluster        # Clean up Kubernetes resources
@@ -183,6 +213,7 @@ After `make setup-vagrant` completes, you'll have 3 Vagrant VMs ready for Kubern
 1. **SSH to master node:**
    ```bash
    vagrant ssh master1
+   # You'll be logged in as vagrant@master-1
    ```
 
 2. **Initialize Kubernetes cluster:**
@@ -210,6 +241,7 @@ After `make setup-vagrant` completes, you'll have 3 Vagrant VMs ready for Kubern
 6. **SSH to worker nodes and join cluster:**
    ```bash
    vagrant ssh worker1
+   # You'll be logged in as vagrant@worker-1
    sudo <join-command-from-step-5>
    ```
 
@@ -274,9 +306,41 @@ For automated cluster setup, you can use the provided Ansible playbooks:
    ansible-playbook cluster-setup/playbooks/07-setup-kubectl-autocomplete.yml
    ```
 
+### Install Additional Tools
+
+8. **Install Helm:**
+   ```bash
+   ansible-playbook cluster-setup/playbooks/09-install-helm.yml
+   ```
+
+9. **Install Nginx Ingress Controller:**
+   ```bash
+   ansible-playbook cluster-setup/playbooks/10-install-nginx-ingress.yml
+   ```
+
+10. **Install cert-manager:**
+    ```bash
+    ansible-playbook cluster-setup/playbooks/14-install-cert-manager.yml
+    ```
+
+11. **Create Let's Encrypt ClusterIssuer:**
+    ```bash
+    ansible-playbook cluster-setup/playbooks/15-create-letsencrypt-issuer.yml
+    ```
+
+12. **Install Kubernetes Dashboard with SSL:**
+    ```bash
+    ansible-playbook cluster-setup/playbooks/16-install-kubernetes-dashboard.yml
+    ```
+
+13. **Copy kubedefs to control plane node:**
+    ```bash
+    ansible-playbook cluster-setup/playbooks/17-copy-kubedefs.yml
+    ```
+
 ### Run Playbooks with Verbose Output
 ```bash
-ansible-playbook cluster-setup/playbooks/01-verify-Prerequisites.yml -v
+ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml -v
 ```
 
 ### Expected Cluster Status After Setup
@@ -406,9 +470,9 @@ vagrant ssh master1 -c "kubectl get pods -A"
 vagrant status
 
 # View VM logs
-vagrant ssh master1
-vagrant ssh worker1
-vagrant ssh worker2
+vagrant ssh master1  # vagrant@master-1
+vagrant ssh worker1  # vagrant@worker-1
+vagrant ssh worker2  # vagrant@worker-2
 ```
 
 ### Workflow Best Practices

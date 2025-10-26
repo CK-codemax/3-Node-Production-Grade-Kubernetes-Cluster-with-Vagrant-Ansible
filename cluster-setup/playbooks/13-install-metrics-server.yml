@@ -1,0 +1,65 @@
+---
+- name: Install Metrics Server with Helm
+  hosts: masters
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Add metrics-server Helm repository
+      shell: helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      register: repo_add
+      failed_when: false
+      
+    - name: Update Helm repositories
+      shell: helm repo update
+      register: repo_update
+      
+    - name: Display repository update output
+      debug:
+        var: repo_update.stdout_lines
+      when: repo_update.stdout_lines is defined
+      
+    - name: Create metrics-server namespace
+      shell: kubectl create namespace metrics-server --dry-run=client -o yaml | kubectl apply -f -
+      register: namespace_create
+      
+    - name: Display namespace creation output
+      debug:
+        var: namespace_create.stdout_lines
+      when: namespace_create.stdout_lines is defined
+      
+    - name: Install Metrics Server
+      shell: |
+        helm install metrics-server metrics-server/metrics-server \
+          -n metrics-server \
+          --set "args={--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP}"
+      register: metrics_server_install
+      
+    - name: Display metrics server installation output
+      debug:
+        var: metrics_server_install.stdout_lines
+      when: metrics_server_install.stdout_lines is defined
+      
+    - name: Wait for metrics server pods to be ready
+      shell: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=metrics-server -n metrics-server --timeout=300s
+      register: metrics_server_ready
+      
+    - name: Display metrics server readiness status
+      debug:
+        var: metrics_server_ready.stdout_lines
+      when: metrics_server_ready.stdout_lines is defined
+      
+    - name: Test metrics server functionality
+      shell: kubectl top nodes
+      register: metrics_test
+      retries: 5
+      delay: 30
+      
+    - name: Display metrics test results
+      debug:
+        var: metrics_test.stdout_lines
+      when: metrics_test.stdout_lines is defined
+      
+    - name: Display Metrics Server installation completion
+      debug:
+        msg: "{{ inventory_hostname }}: Metrics Server installation completed successfully"

@@ -1,0 +1,166 @@
+---
+- name: Install Kubernetes Dashboard with Helm
+  hosts: masters
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Create kubernetes-dashboard namespace
+      shell: kubectl create namespace kubernetes-dashboard --dry-run=client -o yaml | kubectl apply -f -
+      register: namespace_create
+      
+    - name: Display namespace creation output
+      debug:
+        var: namespace_create.stdout_lines
+      when: namespace_create.stdout_lines is defined
+      
+    - name: Add kubernetes-dashboard Helm repository
+      shell: helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+      register: repo_add
+      failed_when: false
+      
+    - name: Update Helm repositories
+      shell: helm repo update
+      register: repo_update
+      
+    - name: Display repository update output
+      debug:
+        var: repo_update.stdout_lines
+      when: repo_update.stdout_lines is defined
+      
+    - name: Install Kubernetes Dashboard
+      shell: |
+        helm install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard \
+          -n kubernetes-dashboard
+      register: dashboard_install
+      
+    - name: Display dashboard installation output
+      debug:
+        var: dashboard_install.stdout_lines
+      when: dashboard_install.stdout_lines is defined
+      
+    - name: Wait for dashboard pods to be ready
+      shell: |
+        # Wait for all dashboard pods to be ready
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kubernetes-dashboard -n kubernetes-dashboard --timeout=300s || \
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=kubernetes-dashboard -n kubernetes-dashboard --timeout=300s || \
+        kubectl wait --for=condition=ready pod -l k8s-app=kubernetes-dashboard -n kubernetes-dashboard --timeout=300s || \
+        echo "Dashboard pods may still be starting, continuing..."
+      register: dashboard_ready
+      failed_when: false
+      
+    - name: Display dashboard readiness status
+      debug:
+        var: dashboard_ready.stdout_lines
+      when: dashboard_ready.stdout_lines is defined
+      
+    - name: Create dashboard read-only service account
+      shell: |
+        kubectl create serviceaccount dashboard-viewer-sa -n kubernetes-dashboard
+      register: sa_create
+      failed_when: false
+      
+    - name: Create cluster role binding for dashboard viewer
+      shell: |
+        kubectl create clusterrolebinding dashboard-viewer-sa --clusterrole=view --serviceaccount=kubernetes-dashboard:dashboard-viewer-sa
+      register: crb_create
+      failed_when: false
+      
+    - name: Get dashboard service details
+      shell: kubectl get svc -n kubernetes-dashboard
+      register: dashboard_svc
+      
+    - name: Display dashboard service details
+      debug:
+        var: dashboard_svc.stdout_lines
+      when: dashboard_svc.stdout_lines is defined
+      
+    - name: Create dashboard ingress with Let's Encrypt SSL
+      shell: |
+        cat <<EOF | kubectl apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: kubernetes-dashboard-ingress
+          namespace: kubernetes-dashboard
+          annotations:
+            nginx.ingress.kubernetes.io/ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            cert-manager.io/cluster-issuer: "letsencrypt-prod"
+        spec:
+          ingressClassName: nginx
+          tls:
+          - hosts:
+            - dashboard.ochukowhoro.xyz
+            secretName: dashboard-tls-secret
+          rules:
+          - host: dashboard.ochukowhoro.xyz
+            http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: kubernetes-dashboard-kong-proxy
+                    port:
+                      number: 443
+        EOF
+      register: dashboard_ingress
+      
+    - name: Display dashboard ingress creation output
+      debug:
+        var: dashboard_ingress.stdout_lines
+      when: dashboard_ingress.stdout_lines is defined
+      
+    - name: Get dashboard viewer token
+      shell: |
+        kubectl create token dashboard-viewer-sa -n kubernetes-dashboard
+      register: dashboard_token
+      
+    - name: Wait for Let's Encrypt certificate to be issued
+      shell: kubectl get certificate dashboard-tls-secret -n kubernetes-dashboard -o jsonpath='{.status.conditions[0].status}'
+      register: cert_ready
+      retries: 20
+      delay: 30
+      failed_when: false
+      
+    - name: Display certificate status
+      debug:
+        msg: "Let's Encrypt certificate status: {{ cert_ready.stdout }}"
+      when: cert_ready.stdout is defined
+      
+    - name: Get certificate details
+      shell: kubectl describe certificate dashboard-tls-secret -n kubernetes-dashboard
+      register: cert_details
+      failed_when: false
+      
+    - name: Display certificate details
+      debug:
+        var: cert_details.stdout_lines
+      when: cert_details.stdout_lines is defined
+      
+    - name: Display dashboard access information
+      debug:
+        msg: |
+          Kubernetes Dashboard installed successfully with Let's Encrypt SSL!
+          
+          Access Information:
+          - URL: https://dashboard.ochukowhoro.xyz
+          - Token: {{ dashboard_token.stdout }}
+          - User Type: Read-only viewer (can only view resources, no modifications)
+          - SSL Certificate: Let's Encrypt (automatically managed by cert-manager)
+          
+          To access the dashboard:
+          1. Visit https://dashboard.ochukowhoro.xyz
+          2. Use the token above for authentication
+          3. Note: HTTPS only - HTTP requests will be redirected to HTTPS
+          4. The SSL certificate will be automatically renewed by cert-manager
+          
+          Note: It may take a few minutes for the Let's Encrypt certificate to be issued.
+          You can check the certificate status with:
+          kubectl describe certificate dashboard-tls-secret -n kubernetes-dashboard
+          
+    - name: Display Kubernetes Dashboard installation completion
+      debug:
+        msg: "{{ inventory_hostname }}: Kubernetes Dashboard installation completed successfully"
