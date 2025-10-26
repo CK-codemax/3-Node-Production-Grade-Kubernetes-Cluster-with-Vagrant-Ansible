@@ -1,0 +1,125 @@
+---
+- name: Install etcd-client on Master Node
+  hosts: master1
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: inventory_hostname == "master1"
+      
+    - name: Install etcd-client package
+      apt:
+        name: etcd-client
+        state: present
+      register: etcd_install
+      when: inventory_hostname == "master1"
+      
+    - name: Verify etcdctl installation
+      shell: which etcdctl
+      register: etcdctl_path
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Get etcdctl version
+      shell: etcdctl version
+      register: etcdctl_version
+      failed_when: false
+      changed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Display etcdctl path
+      debug:
+        msg: "etcdctl installed at: {{ etcdctl_path.stdout }}"
+      when: inventory_hostname == "master1" and etcdctl_path.stdout is defined
+      
+    - name: Display etcdctl version
+      debug:
+        var: etcdctl_version.stdout_lines
+      when: inventory_hostname == "master1" and etcdctl_version.stdout_lines is defined
+      
+    - name: Set ETCDCTL_API environment variable for root
+      lineinfile:
+        path: /root/.bashrc
+        line: 'export ETCDCTL_API=3'
+        state: present
+      when: inventory_hostname == "master1"
+      
+    - name: Set ETCDCTL_API environment variable for vagrant user
+      lineinfile:
+        path: /home/vagrant/.bashrc
+        line: 'export ETCDCTL_API=3'
+        state: present
+      when: inventory_hostname == "master1"
+      
+    - name: Create etcd aliases for root
+      blockinfile:
+        path: /root/.bashrc
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - ETCD ALIASES"
+        block: |
+          # ETCD Aliases for Kubernetes
+          alias etcdctl-k8s='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key'
+          alias etcd-health='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint health'
+          alias etcd-status='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint status --write-out=table'
+          alias etcd-members='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list --write-out=table'
+        state: present
+      when: inventory_hostname == "master1"
+      
+    - name: Create etcd aliases for vagrant user
+      blockinfile:
+        path: /home/vagrant/.bashrc
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - ETCD ALIASES"
+        block: |
+          # ETCD Aliases for Kubernetes
+          alias etcdctl-k8s='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key'
+          alias etcd-health='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint health'
+          alias etcd-status='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint status --write-out=table'
+          alias etcd-members='ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list --write-out=table'
+        state: present
+      when: inventory_hostname == "master1"
+      
+    - name: Test etcd connection
+      shell: |
+        ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          --cert=/etc/kubernetes/pki/etcd/server.crt \
+          --key=/etc/kubernetes/pki/etcd/server.key \
+          endpoint health
+      register: etcd_health
+      failed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Display etcd health check
+      debug:
+        var: etcd_health.stdout_lines
+      when: inventory_hostname == "master1" and etcd_health.stdout_lines is defined
+      
+    - name: Display installation completion
+      debug:
+        msg: |
+          etcd-client installation completed on {{ inventory_hostname }}!
+          
+          Installation Details:
+          - Package: etcd-client
+          - Binary: {{ etcdctl_path.stdout if etcdctl_path.stdout is defined else '/usr/bin/etcdctl' }}
+          - ETCDCTL_API: 3 (set in .bashrc)
+          
+          Available Aliases:
+          - etcdctl-k8s: Full etcdctl command with K8s certs
+          - etcd-health: Check etcd cluster health
+          - etcd-status: Show etcd endpoint status
+          - etcd-members: List etcd cluster members
+          
+          Example Usage:
+          1. Check health: sudo etcd-health
+          2. Get status: sudo etcd-status
+          3. List keys: sudo etcdctl-k8s get / --prefix --keys-only
+          4. Backup: sudo etcdctl-k8s snapshot save /tmp/etcd-backup.db
+          
+          Note: etcd commands require root or sudo access
+      when: inventory_hostname == "master1"
+

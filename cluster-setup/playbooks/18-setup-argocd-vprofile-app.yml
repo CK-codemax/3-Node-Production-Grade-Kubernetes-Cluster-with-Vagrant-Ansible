@@ -1,0 +1,212 @@
+---
+- name: Setup ArgoCD VProfile Application
+  hosts: master1
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    repo_url: "https://github.com/CK-codemax/argo-project-defs.git"
+    repo_dir: "/home/vagrant/argo-project-defs"
+    argocd_namespace: "argocd"
+    
+  tasks:
+    - name: Check if ArgoCD namespace exists
+      shell: kubectl get namespace {{ argocd_namespace }}
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: argocd_namespace_check
+      failed_when: false
+      
+    - name: Fail if ArgoCD is not installed
+      fail:
+        msg: "ArgoCD namespace does not exist. Please run 'make argocd' first to install ArgoCD"
+      when: argocd_namespace_check.rc != 0
+      
+    - name: Check if repository already exists
+      stat:
+        path: "{{ repo_dir }}"
+      register: repo_check
+      
+    - name: Remove existing repository if present
+      file:
+        path: "{{ repo_dir }}"
+        state: absent
+      when: repo_check.stat.exists
+      
+    - name: Clone ArgoCD project definitions repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ repo_dir }}"
+        version: main
+        force: yes
+      become_user: vagrant
+      register: git_clone
+      
+    - name: Display clone result
+      debug:
+        msg: "Repository cloned successfully to {{ repo_dir }}"
+      when: git_clone.changed
+      
+    - name: Verify argo-project directory exists
+      stat:
+        path: "{{ repo_dir }}/argo-project"
+      register: argo_project_dir
+      
+    - name: Fail if argo-project directory not found
+      fail:
+        msg: "argo-project directory not found in repository"
+      when: not argo_project_dir.stat.exists
+      
+    - name: List files in argo-project directory
+      shell: ls -la {{ repo_dir }}/argo-project/
+      register: argo_project_files
+      
+    - name: Display argo-project files
+      debug:
+        var: argo_project_files.stdout_lines
+      when: argo_project_files.stdout_lines is defined
+      
+    - name: Check for ArgoCD Project manifest
+      shell: ls {{ repo_dir }}/argo-project/*project*.yaml 2>/dev/null || echo "not found"
+      register: project_file_check
+      
+    - name: Display project file
+      debug:
+        msg: "Found ArgoCD Project: {{ project_file_check.stdout }}"
+      when: project_file_check.stdout != "not found"
+      
+    - name: Check for ArgoCD Application manifest
+      shell: ls {{ repo_dir }}/argo-project/*application*.yaml 2>/dev/null || echo "not found"
+      register: application_file_check
+      
+    - name: Display application file
+      debug:
+        msg: "Found ArgoCD Application: {{ application_file_check.stdout }}"
+      when: application_file_check.stdout != "not found"
+      
+    - name: Apply ArgoCD Project
+      shell: kubectl apply -f {{ repo_dir }}/argo-project/argocd-project.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: project_apply
+      failed_when: false
+      
+    - name: Display ArgoCD Project apply result
+      debug:
+        var: project_apply.stdout_lines
+      when: project_apply.stdout_lines is defined
+      
+    - name: Display ArgoCD Project apply errors (if any)
+      debug:
+        var: project_apply.stderr_lines
+      when: project_apply.rc != 0 and project_apply.stderr_lines is defined
+      
+    - name: Apply ArgoCD Application
+      shell: kubectl apply -f {{ repo_dir }}/argo-project/argocd-application.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: application_apply
+      failed_when: false
+      
+    - name: Display ArgoCD Application apply result
+      debug:
+        var: application_apply.stdout_lines
+      when: application_apply.stdout_lines is defined
+      
+    - name: Display ArgoCD Application apply errors (if any)
+      debug:
+        var: application_apply.stderr_lines
+      when: application_apply.rc != 0 and application_apply.stderr_lines is defined
+      
+    - name: Wait for ArgoCD Application to be created
+      shell: kubectl get application -n {{ argocd_namespace }}
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: argocd_apps
+      retries: 5
+      delay: 3
+      until: argocd_apps.rc == 0
+      failed_when: false
+      
+    - name: Display ArgoCD Applications
+      debug:
+        var: argocd_apps.stdout_lines
+      when: argocd_apps.stdout_lines is defined
+      
+    - name: Get ArgoCD Application details
+      shell: kubectl get application vprofile-app -n {{ argocd_namespace }} -o yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: app_details
+      failed_when: false
+      
+    - name: Display ArgoCD Application status
+      debug:
+        var: app_details.stdout_lines
+      when: app_details.stdout_lines is defined and app_details.rc == 0
+      
+    - name: Wait for vprofile namespace to be created by ArgoCD
+      shell: kubectl get namespace vprofile
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: vprofile_namespace
+      retries: 10
+      delay: 5
+      until: vprofile_namespace.rc == 0
+      failed_when: false
+      
+    - name: Display vprofile namespace status
+      debug:
+        msg: "VProfile namespace {{ 'created successfully' if vprofile_namespace.rc == 0 else 'not yet created - ArgoCD is syncing' }}"
+      
+    - name: Get ArgoCD Application sync status
+      shell: kubectl get application vprofile-app -n {{ argocd_namespace }} -o jsonpath='{.status.sync.status}'
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: sync_status
+      failed_when: false
+      
+    - name: Display sync status
+      debug:
+        msg: "ArgoCD Application Sync Status: {{ sync_status.stdout if sync_status.rc == 0 else 'Unable to determine' }}"
+      when: sync_status.rc == 0
+      
+    - name: Get ArgoCD Application health status
+      shell: kubectl get application vprofile-app -n {{ argocd_namespace }} -o jsonpath='{.status.health.status}'
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: health_status
+      failed_when: false
+      
+    - name: Display health status
+      debug:
+        msg: "ArgoCD Application Health Status: {{ health_status.stdout if health_status.rc == 0 else 'Unable to determine' }}"
+      when: health_status.rc == 0
+      
+    - name: Display setup completion
+      debug:
+        msg: |
+          {{ inventory_hostname }}: ArgoCD VProfile Application setup completed!
+          
+          Repository Information:
+          - URL: {{ repo_url }}
+          - Local Path: {{ repo_dir }}
+          
+          ArgoCD Resources:
+          - Project: Applied from {{ repo_dir }}/argo-project/argocd-project.yaml
+          - Application: Applied from {{ repo_dir }}/argo-project/argocd-application.yaml
+          
+          Monitoring Commands:
+          - Watch applications: kubectl get applications -n {{ argocd_namespace }} -w
+          - Check vprofile pods: kubectl get pods -n vprofile
+          - View app logs: kubectl logs -n vprofile -l app=vproapp -f
+          - ArgoCD UI: https://argo.ochukowhoro.xyz
+          
+          Next Steps:
+          1. Monitor deployment: kubectl get pods -n vprofile -w
+          2. Check ingress: kubectl get ingress -n vprofile
+          3. Access application once ready (domain configured in ingress)
+          
+          Note: ArgoCD will automatically sync and deploy the application.
+          Initial sync may take a few minutes.
+

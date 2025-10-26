@@ -65,4 +65,4 @@
       shell: kubectl delete pod test-pod --ignore-not-found=true
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
-      when: test_pod.rc != 0
+      failed_when: false

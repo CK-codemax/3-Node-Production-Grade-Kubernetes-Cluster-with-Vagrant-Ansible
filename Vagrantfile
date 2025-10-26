@@ -16,13 +16,13 @@ Vagrant.configure("2") do |config|
 
   # Master Node
   config.vm.define "master1" do |master|
-    master.vm.hostname = "3-nodes-k8s-cluster-master-1"
+    master.vm.hostname = "master-1"
     master.vm.network "private_network", ip: MASTER_IP
 
     master.vm.provider "virtualbox" do |vb|
-      vb.memory = "2048"
+      vb.memory = "4096"  # Increased from 2048 to 4096 (4GB)
       vb.cpus = 2
-      vb.name = "3-nodes-k8s-cluster-master-1"
+      vb.name = "master-1"
     end
 
     # Provision master node
@@ -47,13 +47,13 @@ Vagrant.configure("2") do |config|
 
   # Worker Node 1
   config.vm.define "worker1" do |worker|
-    worker.vm.hostname = "3-nodes-k8s-cluster-worker-1"
+    worker.vm.hostname = "worker-1"
     worker.vm.network "private_network", ip: WORKER1_IP
 
     worker.vm.provider "virtualbox" do |vb|
-      vb.memory = "2048"
+      vb.memory = "6144"  # Increased from 4096 to 6144 (6GB)
       vb.cpus = 2
-      vb.name = "3-nodes-k8s-cluster-worker-1"
+      vb.name = "worker-1"
     end
 
     worker.vm.provision "shell", inline: <<-SHELL
@@ -77,13 +77,13 @@ Vagrant.configure("2") do |config|
 
   # Worker Node 2
   config.vm.define "worker2" do |worker|
-    worker.vm.hostname = "3-nodes-k8s-cluster-worker-2"
+    worker.vm.hostname = "worker-2"
     worker.vm.network "private_network", ip: WORKER2_IP
 
     worker.vm.provider "virtualbox" do |vb|
-      vb.memory = "2048"
+      vb.memory = "6144"  # Increased from 4096 to 6144 (6GB)
       vb.cpus = 2
-      vb.name = "3-nodes-k8s-cluster-worker-2"
+      vb.name = "worker-2"
     end
 
     worker.vm.provision "shell", inline: <<-SHELL
@@ -107,9 +107,9 @@ Vagrant.configure("2") do |config|
 
   # Post-provisioning: Update /etc/hosts on all nodes
   config.vm.provision "shell", inline: <<-SHELL, run: "always"
-    echo "#{MASTER_IP} master1 3-nodes-k8s-cluster-master-1" >> /etc/hosts
-    echo "#{WORKER1_IP} worker1 3-nodes-k8s-cluster-worker-1" >> /etc/hosts
-    echo "#{WORKER2_IP} worker2 3-nodes-k8s-cluster-worker-2" >> /etc/hosts
+    echo "#{MASTER_IP} master1 master-1" >> /etc/hosts
+    echo "#{WORKER1_IP} worker1 worker-1" >> /etc/hosts
+    echo "#{WORKER2_IP} worker2 worker-2" >> /etc/hosts
   SHELL
 end
 

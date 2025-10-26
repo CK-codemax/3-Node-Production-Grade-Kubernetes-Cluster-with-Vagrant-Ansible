@@ -1,0 +1,109 @@
+---
+- name: Setup ETCD Backup Cron Job on Master1
+  hosts: master1
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Create etcd backup directory
+      file:
+        path: /var/backups/etcd
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      when: inventory_hostname == "master1"
+      
+    - name: Create etcd backup script
+      copy:
+        dest: /usr/local/bin/etcd-backup.sh
+        content: |
+          #!/bin/bash
+          ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
+            --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+            --cert=/etc/kubernetes/pki/etcd/server.crt \
+            --key=/etc/kubernetes/pki/etcd/server.key \
+            snapshot save /var/backups/etcd/etcd-$(date +%Y-%m-%d_%H-%M-%S).db
+          
+          # Delete backups older than 7 days
+          find /var/backups/etcd/ -type f -name "etcd-*.db" -mtime +7 -delete
+        mode: '0755'
+        owner: root
+        group: root
+      when: inventory_hostname == "master1"
+      
+    - name: Setup etcd backup cron job to run every 2 minutes
+      cron:
+        name: "ETCD backup"
+        minute: "*/2"
+        user: root
+        job: "/usr/local/bin/etcd-backup.sh >> /var/log/etcd-backup.log 2>&1"
+        state: present
+      when: inventory_hostname == "master1"
+      
+    - name: Verify cron job setup
+      shell: crontab -l
+      register: cron_list
+      changed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Display cron job
+      debug:
+        var: cron_list.stdout_lines
+      when: inventory_hostname == "master1" and cron_list.stdout_lines is defined
+      
+    - name: Test etcd backup manually
+      shell: /usr/local/bin/etcd-backup.sh
+      register: test_backup
+      failed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Display test backup result
+      debug:
+        msg: "Test backup {{ 'successful' if test_backup.rc == 0 else 'failed' }}"
+      when: inventory_hostname == "master1" and test_backup is defined and test_backup.rc is defined
+      
+    - name: List backup files
+      shell: ls -lh /var/backups/etcd/
+      register: backup_files
+      failed_when: false
+      when: inventory_hostname == "master1"
+      
+    - name: Display backup files
+      debug:
+        var: backup_files.stdout_lines
+      when: inventory_hostname == "master1" and backup_files.stdout_lines is defined
+      
+    - name: Display setup completion
+      debug:
+        msg: |
+          ETCD backup cron job setup completed on {{ inventory_hostname }}!
+          
+          Configuration:
+          - Backup Script: /usr/local/bin/etcd-backup.sh
+          - Backup Directory: /var/backups/etcd/
+          - Log File: /var/log/etcd-backup.log
+          - Schedule: Every 2 minutes
+          - User: root
+          - Retention: 7 days (old backups automatically deleted)
+          
+          The cron job will automatically:
+          1. Run every 2 minutes
+          2. Create an etcd snapshot with timestamp
+          3. Store backups in /var/backups/etcd/
+          4. Delete backups older than 7 days
+          5. Log output to /var/log/etcd-backup.log
+          
+          To verify:
+          1. SSH to master1: vagrant ssh master1
+          2. Check backups: sudo ls -lh /var/backups/etcd/
+          3. View cron jobs: sudo crontab -l
+          4. Check logs: sudo tail -f /var/log/etcd-backup.log
+          5. Wait 2 minutes and check for new backup
+          
+          To manually run backup:
+          sudo /usr/local/bin/etcd-backup.sh
+          
+          To restore from backup:
+          ETCDCTL_API=3 etcdctl snapshot restore /var/backups/etcd/etcd-YYYY-MM-DD_HH-MM-SS.db
+      when: inventory_hostname == "master1"

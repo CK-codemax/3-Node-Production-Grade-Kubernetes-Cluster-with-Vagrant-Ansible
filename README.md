@@ -1,505 +1,271 @@
-# 3-Node Kubernetes Infrastructure Setup with Vagrant
+# 3-Node Production Grade Kubernetes Cluster with Vagrant & Ansible
 
-This setup creates a 3 node kubernetes cluster using kubeadm with Vagrant VMs. The process is fully automated using Vagrant for provisioning Infrastructure and ansible for automating kubernetes setup.
+![Kubernetes](https://img.shields.io/badge/kubernetes-v1.28-326CE5?style=flat&logo=kubernetes&logoColor=white)
+![Ansible](https://img.shields.io/badge/ansible-automated-EE0000?style=flat&logo=ansible&logoColor=white)
+![Vagrant](https://img.shields.io/badge/vagrant-vms-1868F2?style=flat&logo=vagrant&logoColor=white)
+![ArgoCD](https://img.shields.io/badge/argocd-gitops-EF7B4D?style=flat&logo=argo&logoColor=white)
 
-## ✅ Cluster Status - WORKING!
+> **Production-ready Kubernetes infrastructure** demonstrating enterprise-grade cluster management, GitOps practices, and automated deployment workflows.
 
-**Successfully tested and verified:**
-- **3 nodes**: master1 (Ready), worker1 (Ready), worker2 (Ready)
-- **All system pods**: Running (etcd, kube-apiserver, kube-controller-manager, kube-scheduler, CoreDNS, Calico)
-- **Test pod**: Successfully executes "Cluster is working!"
-- **API Server**: Accessible and functional
-- **Networking**: Calico CNI working across all nodes
+This project showcases expertise in **bare-metal Kubernetes management** and **infrastructure automation**. It features a complete 3-node cluster built from scratch using kubeadm, automated with Ansible, and enhanced with production-grade tools including Helm, NGINX Ingress, NFS storage provisioning, Metrics Server, Kubernetes Dashboard, and ArgoCD for GitOps continuous delivery. The setup culminates with an automated deployment of a multi-tier Java application (VProfile) demonstrating real-world microservices architecture.
 
-## What This Creates
+## 🚀 Quick Start
 
-- **1 Master Node** (control plane)
-- **2 Worker Nodes** (compute)
-- **Vagrant VMs** with Ubuntu 22.04 LTS
-- **Private networking** with static IPs for cluster communication
-- **Pre-installed Kubernetes packages** (kubelet, kubeadm, kubectl)
+```bash
+# Complete setup (15-20 minutes)
+make setup-with-tools
 
-## Simple Architecture
+# Or step by step
+make setup              # VMs + Kubernetes cluster (10 min)
+make tools              # Dashboard, ArgoCD, monitoring (10 min)
+
+# Access cluster
+vagrant ssh master1
+kubectl get nodes
+```
+
+## 📋 What You Get
+
+### Infrastructure
+- **3 VMs**: 1 master (4GB RAM), 2 workers (4GB RAM each)
+- **Ubuntu 22.04 LTS** on VirtualBox
+- **Private network**: 192.168.56.10-12
+- **Kubernetes v1.28** with kubeadm
+
+### Cluster Components
+- ✅ **Calico CNI** for pod networking
+- ✅ **Helm 3** - Package manager
+- ✅ **NGINX Ingress** - External access
+- ✅ **NFS Provisioner** - Dynamic storage
+- ✅ **Metrics Server** - `kubectl top` support
+- ✅ **Kubernetes Dashboard** - Web UI
+- ✅ **ArgoCD** - GitOps continuous delivery
+- ✅ **VProfile App** - Sample microservices (via ArgoCD)
+
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│              Vagrant VMs                │
-│                                         │
-│  ┌─────────────┐  ┌─────────────┐      │
-│  │   Master-1  │  │   Worker-1  │      │
-│  │ (Control    │  │  (Compute   │      │
-│  │  Plane)     │  │   Node)     │      │
-│  │192.168.56.10│  │192.168.56.11│      │
-│  └─────────────┘  └─────────────┘      │
-│                                         │
-│  ┌─────────────┐                       │
-│  │   Worker-2  │                       │
-│  │  (Compute   │                       │
-│  │   Node)     │                       │
-│  │192.168.56.12│                       │
-│  └─────────────┘                       │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│         Vagrant VMs (VirtualBox)           │
+│                                            │
+│  ┌──────────────┐  ┌──────────────┐       │
+│  │  Master-1    │  │  Worker-1    │       │
+│  │ (Control     │  │  (Compute)   │       │
+│  │  Plane)      │  │              │       │
+│  │ 192.168.56.10│  │192.168.56.11 │       │
+│  │  4GB / 2CPU  │  │  6GB / 2CPU  │       │
+│  └──────────────┘  └──────────────┘       │
+│                                            │
+│  ┌──────────────┐                         │
+│  │  Worker-2    │                         │
+│  │  (Compute)   │                         │
+│  │192.168.56.12 │                         │
+│  │  6GB / 2CPU  │                         │
+│  └──────────────┘                         │
+└────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
-1. **Vagrant** >= 2.0 installed
-2. **VirtualBox** or other Vagrant provider
-3. **Make** utility installed (for automation)
-4. **Ansible** installed (for cluster setup)
-5. **At least 6GB RAM** available for VMs
+**Tools:** VirtualBox, Vagrant, Ansible 
 
-### Installation Instructions
+**System Requirements:** 16GB RAM, 20GB disk, 4+ CPU cores
 
-**macOS:**
+**DNS Configuration (for ingress):**
+- Create A records with your domain provider:
+  - `dashboard.yourdomain.com` → `192.168.56.10`
+  - `argo.yourdomain.com` → `192.168.56.10`
+  - `vprofile.yourdomain.com` → `192.168.56.10`
+
+**Note:** Since this uses private VM IPs, SSL certificates cannot be automatically provisioned. Browser security warnings are expected and normal for local development.
+
+## 📚 Usage
+
+### Essential Commands
+
 ```bash
-# Install Vagrant, VirtualBox, and Ansible
-brew install vagrant virtualbox ansible
+# Setup
+make setup              # Create VMs + deploy Kubernetes
+
+# Access
+vagrant ssh master1     # SSH to master
+vagrant ssh worker1     # SSH to worker1
+vagrant ssh worker2     # SSH to worker2
+
+# Cleanup
+make clean-cluster      # Reset cluster (keep VMs)
+make clean              # Destroy everything
 ```
 
-**Ubuntu/Debian:**
+### Available Commands
+
+<details>
+<summary>View all commands</summary>
+
+**Setup:**
+- `make setup` - Complete automated setup ⭐
+- `make setup-vagrant` - Create VMs only
+- `make setup-cluster` - Deploy Kubernetes only
+- `make setup-with-tools` - Full setup + tools
+
+**Cluster:**
+- `make master` - Initialize master
+- `make cni` - Install Calico CNI
+- `make workers` - Join workers
+- `make verify` - Verify cluster
+- `make etcd-client` - Install etcd-client
+- `make etcd-backup` - Setup ETCD backup cron (every 2 min)
+
+**Tools:**
+- `make helm` - Install Helm
+- `make nginx-ingress` - NGINX Ingress
+- `make nfs` - Setup NFS
+- `make nfs-provisioner` - NFS provisioner
+- `make metrics-server` - Metrics Server
+- `make dashboard` - Kubernetes Dashboard
+- `make argocd` - Install ArgoCD
+- `make argocd-cli` - ArgoCD CLI
+- `make argocd-vprofile` - Deploy VProfile app
+- `make tools` - Install all tools
+
+**Cleanup:**
+- `make clean-cluster` - Reset cluster
+- `make clean-infra` - Destroy VMs
+- `make clean` - Complete cleanup
+
+**Utilities:**
+- `make ping` - Test connectivity
+- `make ssh-config` - Regenerate SSH config
+- `make status` - Check cluster status
+</details>
+
+## 🔐 Accessing Services
+
+### Kubernetes Dashboard
 ```bash
-# Install Vagrant, VirtualBox, Make and Ansible
-sudo apt update
-sudo apt install vagrant virtualbox make ansible
+# URL: https://dashboard.ochukowhoro.xyz
+kubectl create token dashboard-viewer-sa -n kubernetes-dashboard
+# Browser warning expected
 ```
 
-**CentOS/RHEL:**
+### ArgoCD
 ```bash
-# Install Vagrant, VirtualBox, Make and Ansible
-sudo yum install vagrant VirtualBox make ansible
-# or for newer versions:
-sudo dnf install vagrant VirtualBox make ansible
+# URL: https://argo.ochukowhoro.xyz
+# Username: admin
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
 ```
 
-## Quick Start with Makefile
-
-The easiest way to set up the entire cluster:
-
+### VProfile Application
 ```bash
-# One command setup (recommended)
-make setup
+# URL: https://vprofile.ochukowhoro.xyz
+# Username: admin_vp
+# Password: admin_vp
 
-# Or step by step:
-make setup-vagrant          # Complete VM setup (create VMs + install tools + inventory)
-make setup-cluster          # Complete cluster setup
-
-# Or individual steps:
-make up                     # Start Vagrant VMs
-make inventory              # Create inventory file
-make all                    # Deploy Kubernetes cluster
+# Monitor deployment
+kubectl get applications -n argocd
+kubectl get pods -n vprofile
 ```
 
-## Complete Setup Workflow
+## 🛠️ Common Tasks
 
-### 1. VM Setup
+### Verify Cluster
 ```bash
-make setup-vagrant
+vagrant ssh master1
+kubectl get nodes
+kubectl get pods -A
+kubectl top nodes
 ```
-**What this does:**
-- Starts Vagrant VMs (3 VMs with Ubuntu 22.04)
-- Provisions VMs with Kubernetes tools (kubelet, kubeadm, kubectl)
-- Creates Ansible inventory file (`hosts.yml`) with Vagrant IPs
 
-**VMs created:**
-- Master: `192.168.56.10`
-- Worker1: `192.168.56.11`
-- Worker2: `192.168.56.12`
-
-### 2. Cluster Setup
+### ETCD Backup & Restore
 ```bash
+# Setup automated backups (runs every 2 minutes)
+make etcd-backup
+
+# Check backups
+vagrant ssh master1
+sudo ls -lh /var/backups/etcd/
+
+# View backup logs
+sudo tail -f /var/log/etcd-backup.log
+
+# Manual backup
+sudo /usr/local/bin/etcd-backup.sh
+
+# Restore from backup
+ETCDCTL_API=3 etcdctl snapshot restore /var/backups/etcd/etcd-YYYY-MM-DD_HH-MM-SS.db \
+  --data-dir=/var/lib/etcd-restore
+
+# Check etcd health
+sudo etcd-health
+sudo etcd-status
+```
+
+### Restart Cluster (Keep VMs)
+```bash
+make clean-cluster
 make setup-cluster
-```
-**What this does:**
-- Runs all Ansible playbooks to deploy Kubernetes
-- Verifies prerequisites
-- Configures kubelet node IPs
-- Initializes master node
-- Installs CNI (Calico)
-- Joins worker nodes
-- Verifies cluster is working
-
-### 3. Install Additional Tools (Optional)
-```bash
 make tools
 ```
-**What this does:**
-- Installs Helm package manager
-- Installs Nginx Ingress Controller
-- Installs cert-manager for SSL certificate management
-- Creates Let's Encrypt production ClusterIssuer
-- Sets up NFS server and client
-- Installs NFS provisioner
-- Installs Metrics Server
-- Installs Kubernetes Dashboard with Let's Encrypt SSL
 
-**Individual tool installation:**
+### Update VM Memory
+1. Edit `Vagrantfile` (change memory/CPU)
+2. Run: `vagrant reload`
+3. Reset cluster: `make clean-cluster && make setup-cluster`
+
+## 🐛 Troubleshooting
+
+### SSH/Ansible Issues
 ```bash
-make helm                   # Install Helm only
-make nginx-ingress          # Install Nginx Ingress Controller only
-make cert-manager           # Install cert-manager only
-make letsencrypt-issuer     # Create Let's Encrypt ClusterIssuer only
-make dashboard              # Install Kubernetes Dashboard with SSL
+make ssh-config        # Most common fix
+ansible all -m ping    # Test connectivity
 ```
 
-### 4. Cluster Cleanup (when done)
+### API Server Not Responding
 ```bash
-make cleanup-cluster
-```
-**What this does:**
-- Runs `kubeadm reset -f` on all nodes
-- Removes `.kube/config` from master node
-- Fast cleanup without uninstalling packages
-
-### 5. Complete Cleanup
-```bash
-make clean
-```
-**What this does:**
-- First runs `cleanup-cluster` (see above)
-- Then removes local files (inventory, logs)
-- Destroys all Vagrant VMs
-
-### Available Makefile Targets
-
-```bash
-make help                   # Show all available commands
-make setup                  # Complete setup (VMs + cluster) in one command ⭐
-make up                     # Start Vagrant VMs
-make down                   # Stop Vagrant VMs
-make provision              # Provision VMs with Kubernetes tools
-make inventory              # Create inventory file
-make ping                   # Test connectivity
-make ssh-config             # Generate SSH config for Ansible
-make prereq                 # Run prerequisites
-make kubelet                # Configure kubelet node IPs
-make master                 # Initialize master
-make cni                    # Install CNI
-make workers                # Join workers
-make verify                 # Verify cluster
-make helm                   # Install Helm
-make nginx-ingress          # Install Nginx Ingress Controller
-make cert-manager           # Install cert-manager
-make letsencrypt-issuer     # Create Let's Encrypt ClusterIssuer
-make dashboard              # Install Kubernetes Dashboard (with SSL)
-make copy-kubedefs          # Copy kubedefs to control plane node
-make tools                  # Install all additional tools
-make setup-vagrant          # Complete VM setup
-make setup-cluster          # Complete cluster setup
-make cleanup-cluster        # Clean up Kubernetes resources
-make clean                  # Clean up files and destroy VMs
-make status                 # Check cluster status
-```
-
-## Configuration
-
-### Variables (Vagrantfile)
-
-- `MASTER_IP`: Master node IP (default: 192.168.56.10)
-- `WORKER1_IP`: Worker node 1 IP (default: 192.168.56.11)
-- `WORKER2_IP`: Worker node 2 IP (default: 192.168.56.12)
-
-### Customization
-
-Edit `Vagrantfile` to customize:
-- Instance IPs
-- VM memory/CPU
-- Kubernetes version (in provisioning scripts)
-
-## Post-Deployment - Setting Up Kubernetes with kubeadm
-
-After `make setup-vagrant` completes, you'll have 3 Vagrant VMs ready for Kubernetes setup:
-
-1. **SSH to master node:**
-   ```bash
-   vagrant ssh master1
-   # You'll be logged in as vagrant@master-1
-   ```
-
-2. **Initialize Kubernetes cluster:**
-   ```bash
-   sudo kubeadm init --pod-network-cidr=192.168.0.0/16
-   ```
-
-3. **Configure kubectl:**
-   ```bash
-   mkdir -p $HOME/.kube
-   sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-   sudo chown $(id -u):$(id -g) $HOME/.kube/config
-   ```
-
-4. **Install CNI (Calico):**
-   ```bash
-   kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
-   ```
-
-5. **Get join command for worker nodes:**
-   ```bash
-   sudo kubeadm token create --print-join-command
-   ```
-
-6. **SSH to worker nodes and join cluster:**
-   ```bash
-   vagrant ssh worker1
-   # You'll be logged in as vagrant@worker-1
-   sudo <join-command-from-step-5>
-   ```
-
-7. **Verify cluster:**
-   ```bash
-   kubectl get nodes
-   kubectl get pods -A
-   ```
-
-## Automated Setup with Ansible
-
-For automated cluster setup, you can use the provided Ansible playbooks:
-
-### Prerequisites
-1. **Install Ansible:**
-   ```bash
-   pip install ansible
-   ```
-
-2. **Update inventory file:**
-   The `cluster-setup/inventory/hosts.yml` file is automatically created by `make setup-vagrant`.
-
-3. **Test connectivity:**
-   ```bash
-   ansible all -m ping
-   ```
-
-### Run Individual Playbooks
-
-1. **Configure kubelet node IPs:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/00-configure-kubelet.yml
-   ```
-
-2. **Verify prerequisites:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml
-   ```
-
-3. **Initialize master node:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/03-initi-master.yml
-   ```
-
-4. **Install CNI (Calico):**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/04-install-cni.yml
-   ```
-
-5. **Join worker nodes:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/05-join-workers.yml
-   ```
-
-6. **Verify cluster:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/06-verify-cluster.yml
-   ```
-
-7. **Setup kubectl autocomplete:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/07-setup-kubectl-autocomplete.yml
-   ```
-
-### Install Additional Tools
-
-8. **Install Helm:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/09-install-helm.yml
-   ```
-
-9. **Install Nginx Ingress Controller:**
-   ```bash
-   ansible-playbook cluster-setup/playbooks/10-install-nginx-ingress.yml
-   ```
-
-10. **Install cert-manager:**
-    ```bash
-    ansible-playbook cluster-setup/playbooks/14-install-cert-manager.yml
-    ```
-
-11. **Create Let's Encrypt ClusterIssuer:**
-    ```bash
-    ansible-playbook cluster-setup/playbooks/15-create-letsencrypt-issuer.yml
-    ```
-
-12. **Install Kubernetes Dashboard with SSL:**
-    ```bash
-    ansible-playbook cluster-setup/playbooks/16-install-kubernetes-dashboard.yml
-    ```
-
-13. **Copy kubedefs to control plane node:**
-    ```bash
-    ansible-playbook cluster-setup/playbooks/17-copy-kubedefs.yml
-    ```
-
-### Run Playbooks with Verbose Output
-```bash
-ansible-playbook cluster-setup/playbooks/01-verify-prerequisites.yml -v
-```
-
-### Expected Cluster Status After Setup
-After running all playbooks, you should see:
-- **3 nodes**: master1 (Ready), worker1 (Ready), worker2 (Ready)
-- **All system pods**: Running (etcd, kube-apiserver, kube-controller-manager, kube-scheduler, CoreDNS, Calico)
-- **Test pod**: Successfully executes "Cluster is working!"
-- **API Server**: Accessible at `https://<master-ip>:6443`
-
-### Troubleshooting Ansible
-- **Check inventory:** `ansible all -m ping`
-- **Test specific group:** `ansible masters -m ping`
-- **View logs:** Check `ansible.log` file
-
-## Network Configuration
-
-- **Master**: SSH (22), Kubernetes API (6443), etcd (2379-2380), kubelet (10250)
-- **Workers**: SSH (22), kubelet (10250), NodePort (30000-32767)
-- **Private Network**: 192.168.56.0/24 for cluster communication
-
-This setup is perfect for practicing:
-
-- **kubeadm cluster initialization**
-- **Node management and troubleshooting**
-- **Pod networking and CNI configuration**
-- **Security contexts and RBAC**
-- **Service and ingress configuration**
-- **Persistent volumes and storage**
-- **Cluster maintenance and upgrades**
-
-## Cleanup Workflow
-
-### Complete Cleanup (Recommended)
-
-To properly clean up everything:
-
-```bash
-# 1. Clean up Kubernetes resources from VMs + local files
-make clean
-```
-
-### Individual Cleanup Steps
-
-```bash
-# Clean up Kubernetes resources from VMs only
-make cleanup-cluster
-
-# Clean up local files only (inventory, logs)
-make clean
-
-# Destroy Vagrant infrastructure only
-make clean-infra
-```
-
-### What Each Cleanup Command Does:
-
-**`make cleanup-cluster`:**
-1. Runs `kubeadm reset -f` on all nodes to clean up cluster state
-2. Removes `.kube/config` from master node
-3. Fast cleanup without uninstalling packages
-
-**`make clean`:**
-- First runs `cleanup-cluster` (see above)
-- Then removes local files (inventory, logs)
-- Destroys all Vagrant VMs
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-#### 1. **Provisioning Failures**
-If `make provision` fails with GPG key errors:
-```bash
-# Clean up and retry
-make clean-infra
-make setup-vagrant
-```
-
-#### 2. **Cluster Setup Failures**
-If `make setup-cluster` fails:
-```bash
-# Check if VMs are running
-vagrant status
-
-# Regenerate SSH config (common fix)
-make ssh-config
-
-# If VMs are running but cluster setup fails, clean cluster and retry
+# After VM restart/reload
 make clean-cluster
 make setup-cluster
 ```
 
-#### 3. **kubelet Service Not Found**
-If you get "Could not find the requested service kubelet":
-- This happens after running `make clean-cluster`
-- Run `make provision` first to reinstall Kubernetes tools
-- Then run `make setup-cluster`
-
-#### 4. **Worker Nodes Not Joining**
-If worker nodes fail to join:
-- Check that the master node is fully initialized
-- Verify the join command uses the correct IP (192.168.56.10)
-- Check network connectivity between nodes
-
-#### 5. **SSH Connectivity Issues (Most Common)**
-If you get "Permission denied (publickey,password)" or "UNREACHABLE!" errors:
+### Pods Not Scheduling
 ```bash
-# This is usually a timing issue - SSH config needs regeneration
-make ssh-config
-
-# Test connectivity
-ansible all -m ping
-
-# If still failing, manually regenerate:
-vagrant ssh-config > ssh_config
+kubectl describe nodes | grep -A 5 "Allocated resources"
+# Increase memory in Vagrantfile, then vagrant reload
 ```
 
-**Why this happens:** During `vagrant up`, SSH keys are generated and network interfaces are configured. Ansible needs the updated SSH config to connect properly.
-
-#### 6. **General Troubleshooting Commands**
+### Worker Not Joining
 ```bash
-# Check Kubernetes status
-vagrant ssh master1 -c "kubectl get nodes"
-vagrant ssh master1 -c "kubectl get pods -A"
-
-# Check VM status
-vagrant status
-
-# View VM logs
-vagrant ssh master1  # vagrant@master-1
-vagrant ssh worker1  # vagrant@worker-1
-vagrant ssh worker2  # vagrant@worker-2
+vagrant ssh master1
+kubeadm token create --print-join-command
+# Use command on worker node
 ```
 
-### Workflow Best Practices
+## 🎓 Use Cases
 
-#### **First Time Setup:**
-```bash
-make setup-vagrant    # Create VMs and install tools
-make setup-cluster    # Deploy Kubernetes cluster
-```
+Perfect for learning and practicing:
+- Kubernetes cluster setup from scratch
+- GitOps with ArgoCD
+- Ingress and load balancing
+- Persistent storage with NFS
+- Monitoring and metrics
+- High availability patterns
+- Cluster maintenance
 
-#### **Reset Cluster (Keep VMs):**
-```bash
-make clean-cluster    # Reset cluster state
-make setup-cluster    # Deploy new cluster
-```
+## 📝 Configuration
 
-#### **Complete Reset:**
-```bash
-make clean           # Destroy everything and start fresh
-make setup-vagrant   # Create new VMs
-make setup-cluster   # Deploy new cluster
-```
+- **Hostnames**: master-1, worker-1, worker-2
+- **Network**: Private network (192.168.56.0/24)
+- **Pod CIDR**: 192.168.0.0/16 (Calico)
+- **Service CIDR**: 10.96.0.0/12
+- **Ingress**: NGINX (NodePort mode)
 
-### Cleanup Options
+## 🔗 Related Projects
 
-- **`make clean-cluster`**: Fast reset - only runs `kubeadm reset -f` and removes kubectl config
-- **`make clean-infra`**: Destroys all VMs
-- **`make clean`**: Complete cleanup (cluster + infrastructure + files)
+- [argo-project-defs](https://github.com/CK-codemax/argo-project-defs) - GitOps application definitions
 
+---
 
+**Built by**: [Whoro Ochuko](https://github.com/CK-codemax) 
+**Built with**: Vagrant • Ansible • Kubernetes • Helm • ArgoCD  
+**Perfect for**: Learning, Development, Training, Portfolio
