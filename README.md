@@ -263,7 +263,7 @@ chmod +x /usr/local/bin/argocd
 # Creates ArgoCD Application resource pointing to Git repo
 kubectl apply -f vprofile-app.yaml
 ```
-- ArgoCD clones repo: `github.com/CK-codemax/argo-project-defs`
+- ArgoCD clones repo: `github.com/OchukoWH/argo-project-defs`
 - Deploys VProfile namespace with: Nginx, Tomcat, MySQL, Memcached, RabbitMQ
 - Creates ingress at: `https://vprofile.yourdomain.com`
 
@@ -826,7 +826,7 @@ make clean              # Destroy everything
 
 ## 🔗 Related Projects
 
-- [argo-project-defs](https://github.com/CK-codemax/argo-project-defs) - GitOps application definitions for VProfile and other apps
+- [argo-project-defs](https://github.com/OchukoWH/argo-project-defs) - GitOps application definitions for VProfile and other apps
 
 ---
 
@@ -842,7 +842,7 @@ make clean              # Destroy everything
 
 ---
 
-**Built by**: [Whoro Ochuko](https://github.com/CK-codemax) 
+**Built by**: [Whoro Ochuko](https://github.com/OchukoWH) 
 **Built with**: Vagrant • Ansible • Kubernetes • Helm • ArgoCD • Calico • NFS  
 **Perfect for**: Learning, Development, Training, Portfolio, Interviews, CKA Prep  
 **License**: Open source - Use, modify, learn from it!

@@ -1,0 +1,10 @@
+kubectl auth can-i get pods --as:system:serviceaccount:demo-ns:demo-sa -n demo-ns
+kubectl auth can-i --as:system:serviceaccount:demo-ns:demo-sa --list -n demo-ns
+
+sudo ls /var/run/secrets/kubernetes.io/serviceaccount/ : on that pod
+
+kubectl patch serviceaccount default -n secure-ns -p '{"automountServiceAccountToken": false}'
+
+kubectl get pods -n secure -o jsonpath='{.items[*].spec.serviceAccountName}'
+kubectl get pods -n secure -o jsonpath='{.items[*].spec.serviceAccountName}' | xargs -I{} kubectl patch serviceaccount {} -n secure -p '{"automountServiceAccountToken": false}'
+kubectl get pods -n secure mypod -o yaml | grep -A 2 'serviceAccountName'

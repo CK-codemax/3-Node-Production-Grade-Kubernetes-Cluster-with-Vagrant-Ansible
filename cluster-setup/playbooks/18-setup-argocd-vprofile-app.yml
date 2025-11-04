@@ -5,7 +5,7 @@
   gather_facts: yes
   
   vars:
-    repo_url: "https://github.com/CK-codemax/argo-project-defs.git"
+    repo_url: "https://github.com/OchukoWH/argo-project-defs.git"
     repo_dir: "/home/vagrant/argo-project-defs"
     argocd_namespace: "argocd"
     
